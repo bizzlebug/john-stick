@@ -147,6 +147,7 @@ export interface Enemy {
     title: string;
   };
   chargeTarget?: { x: number; y: number };
+  fromOpponent?: boolean;  // Marks enemies sent from opponent in Duels mode
 }
 
 export interface Projectile {
