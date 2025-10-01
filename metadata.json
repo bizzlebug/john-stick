@@ -1,0 +1,5 @@
+{
+  "name": "John Stick: Horde Survivor Online Version",
+  "description": "A web-based stickman horde survival game. Survive waves of enemies, level up by choosing perks, and collect items to become more powerful. Built with React and Tailwind CSS.",
+  "requestFramePermissions": []
+}

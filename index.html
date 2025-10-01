@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>John Stick: Horde Survivor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+      html, body {
+        overflow: hidden;
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+      }
+      /* Cooldown overlay for skills */
+      .skill.on-cd .cd-overlay {
+        background: conic-gradient(rgba(0,0,0,.65) calc((1 - var(--p, 0))*360deg), rgba(0,0,0,.2) 0);
+      }
+      .pixel-title {
+        font-family: 'Press Start 2P', cursive;
+        color: white;
+        text-shadow: 2px 2px 0 #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        -webkit-box-reflect: below -5px linear-gradient(transparent, transparent 30%, rgba(0,0,0,0.2));
+        font-size: 2.5rem;
+        animation: title-pulse 4s ease-in-out infinite, lightning-flicker 7s linear infinite;
+      }
+      .wick-i-silhouette {
+        display: inline-block;
+        width: 2rem;
+        background-color: white;
+        margin: 0 0.25rem;
+        -webkit-mask-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCAyNCA0MCIgZmlsbD0iYmxhY2siIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTE1IDIgTDEzIDAgTDExIDAgTDkgMiBMOSA1IEwxMCA3IEw4IDggTDcgMTAgTDcgMjAgTDggMjIgTDggMzQgTDEwIDM4IEwxNCAzOCBMMTYgMzQgTDE2IDIyIEwyNCAxNiBMMjQgMTIgTDE2IDEyIEwxNiAxMCBMMTUgOCBMMTQgNyBMMTUgNSBaIi8+PC9zdmc+');
+        mask-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCAyNCA0MCIgZmlsbD0iYmxhY2siIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTE1IDIgTDEzIDAgTDExIDAgTDkgMiBMOSA1IEwxMCA3IEw4IDggTDcgMTAgTDcgMjAgTDggMjIgTDggMzQgTDEwIDM4IEwxNCAzOCBMMTYgMzQgTDE2IDIyIEwyNCAxNiBMMjQgMTIgTDE2IDEyIEwxNiAxMCBMMTUgOCBMMTQgNyBMMTUgNSBaIi8+PC9zdmc+');
+        mask-repeat: no-repeat;
+        mask-position: center;
+        mask-size: contain;
+        height: 2.5rem;
+      }
+      @media (min-width: 640px) {
+        .pixel-title {
+          font-size: 4rem;
+        }
+        .wick-i-silhouette {
+          width: 2.5rem;
+          margin: 0 0.5rem;
+          height: 4rem;
+        }
+      }
+      @media (min-width: 1024px) {
+        .pixel-title {
+          font-size: 5rem;
+        }
+        .wick-i-silhouette {
+          height: 5rem;
+        }
+      }
+
+      /* Title and Rain animations */
+      @keyframes title-pulse {
+        0%, 100% {
+          text-shadow: 2px 2px 0 #000, 0 0 7px rgba(0, 242, 255, 0.4), 0 0 10px rgba(0, 242, 255, 0.3);
+        }
+        50% {
+          text-shadow: 2px 2px 0 #000, 0 0 15px rgba(0, 242, 255, 0.7), 0 0 25px rgba(0, 242, 255, 0.5);
+        }
+      }
+
+      @keyframes lightning-flicker {
+        0% { text-shadow: 2px 2px 0 #000, 0 0 7px rgba(0, 242, 255, 0.4); }
+        2% { text-shadow: 2px 2px 0 #000, 0 0 20px #fff, 0 0 30px #00f2ff, 0 0 40px #00f2ff; }
+        2.5% { text-shadow: 2px 2px 0 #000, 0 0 7px rgba(0, 242, 255, 0.4); }
+        3% { text-shadow: 2px 2px 0 #000, 0 0 20px #fff, 0 0 30px #00f2ff, 0 0 40px #00f2ff; }
+        4% { text-shadow: 2px 2px 0 #000, 0 0 7px rgba(0, 242, 255, 0.4); }
+        
+        15% { text-shadow: 2px 2px 0 #000, 0 0 7px rgba(0, 242, 255, 0.4); }
+        15.5% { text-shadow: 2px 2px 0 #000, 0 0 10px #fff, 0 0 20px #00f2ff; }
+        16% { text-shadow: 2px 2px 0 #000, 0 0 7px rgba(0, 242, 255, 0.4); }
+
+        100% { text-shadow: 2px 2px 0 #000, 0 0 7px rgba(0, 242, 255, 0.4); }
+      }
+
+      .rain {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        pointer-events: none;
+      }
+
+      .rain .drop {
+        position: absolute;
+        bottom: 100%;
+        background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(0, 242, 255, 0.4));
+        animation: rain-fall linear infinite;
+      }
+
+      @keyframes rain-fall {
+        to {
+          transform: translateY(110vh);
+        }
+      }
+
+      @keyframes fade-in-out {
+        0%, 100% { opacity: 0; transform: translateY(20px); }
+        10%, 90% { opacity: 1; transform: translateY(0); }
+      }
+      .toast-notification {
+        animation: fade-in-out 3s ease-in-out forwards;
+      }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "vite": "https://aistudiocdn.com/vite@^7.1.7",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.0.4"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-gray-900">
+    <div id="root"></div>
+
+    <!-- Sound effects -->
+    <audio id="sfx-pistol" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAf39/fwAAAP///wAAAH9/fw=="></audio>
+    <audio id="sfx-reload" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAgICAQEBAgICAwMDAgICA"></audio>
+    <audio id="sfx-hit" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAwMDAwMDAwMDAwMDAwMDA"></audio>
+    <audio id="sfx-hurt" preload="auto" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"></audio>
+    <audio id="sfx-kill" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAf39/gICAf39/gICAf39/"></audio>
+    <audio id="sfx-gameover" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAwMDAgICAQEBAgICAQEBB"></audio>
+    <audio id="sfx-stomp" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAgICAQEBAwMDAgICAwMDA"></audio>
+    <audio id="sfx-dodge" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAgICAwMDAQEBAQEBAwMDA"></audio>
+    <audio id="sfx-levelup" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAQEBAgICAwMDA4ODgQEBA"></audio>
+    <audio id="sfx-wave-start" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAwMDA4ODgQEBAQEBA4ODg"></audio>
+    <audio id="sfx-item-pickup" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAQEBAQEBAwMDAwMDAgICA"></audio>
+    <audio id="sfx-coin-pickup" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAA4ODgQEBAwMDAgICAQEBA"></audio>
+    <audio id="sfx-explosion" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAf39/gICA4ODgQEBAwMDA"></audio>
+    <audio id="sfx-railgun" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAQEBA4ODgICAgwMDAQEBA"></audio>
+    <audio id="sfx-shotgun" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAgICAQEBAQEBAgICAQEBA"></audio>
+    <audio id="sfx-smg" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAQEBAQEBAQEBAQEBAQEBA"></audio>
+    <audio id="sfx-enemy-shoot" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAwMDA4ODgQEBAQEBAgICA"></audio>
+    <audio id="sfx-melee-swing" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAQEBAwMDAwMDA4ODgQEBA"></audio>
+    <audio id="sfx-ricochet" preload="auto" src="data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAAAQEBAgICA4ODg/Pz84ODg"></audio>
+
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
