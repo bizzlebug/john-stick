@@ -1549,11 +1549,15 @@ const sendEnemyToOpponent = useCallback((enemyType: string) => {
       addFloatingText(virtualWidthRef.current / 2, virtualHeightRef.current / 2 - 100, `The Don has appeared!`, false, { isAnnouncement: true, lifetime: 3 });
   }, [addFloatingText]);
 
-  const spawnEnemy = useCallback((type: string, wave: number, pos?: {x: number, y: number}) => {
+  const spawnEnemy = useCallback((
+  type: string, 
+  wave: number, 
+  options?: {x?: number, y?: number, fromOpponent?: boolean}  // 👈 Changed pos to options
+) => {
       let x, y;
-      if (pos) {
-        x = pos.x + rand(-10, 10);
-        y = pos.y + rand(-10, 10);
+      if (options?.x !== undefined && options?.y !== undefined) {  // 👈 Changed from pos
+        x = options.x + rand(-10, 10);  // 👈 Changed from pos.x
+        y = options.y + rand(-10, 10);  // 👈 Changed from pos.y
       } else {
         const m = 60;
         const side = Math.floor(Math.random() * 4);
@@ -1630,8 +1634,52 @@ const sendEnemyToOpponent = useCallback((enemyType: string) => {
         e.meleeAttackTimer = 0;
       }
 
+      // 🔴 ADD RED PORTAL EFFECT FOR OPPONENT ENEMIES (BEFORE pushing to array)
+      if (options?.fromOpponent) {  // 👈 Changed from pos
+        e.fromOpponent = true;
+        
+        // Create red portal spawn effect
+        effectsRef.current.push({
+          id: Date.now() + Math.random(),
+          type: 'singularity',
+          x: e.x,
+          y: e.y,
+          r: 0,
+          maxR: 60,
+          t: 0.6,
+          maxT: 0.6,
+          strength: 0,
+          color: '#ff0000'
+        } as any);
+        
+        // Add spawn particles
+        for (let i = 0; i < 20; i++) {
+          const angle = (Math.PI * 2 * i) / 20;
+          const speed = 100 + Math.random() * 50;
+          bloodParticlesRef.current.push({
+            x: e.x,
+            y: e.y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            r: 3 + Math.random() * 3,
+            t: 0.5,
+            maxT: 0.5,
+            color: '#ff0000'
+          });
+        }
+        
+        // Play special sound effect
+        playSfx('sfx-explosion');
+        
+        // Add floating text announcement
+        addFloatingText(e.x, e.y - 50, '⚔️ OPPONENT', false, {
+          color: '#ff0000',
+          lifetime: 1.5
+        });
+      }
+
       enemiesRef.current.push(e);
-  }, []);
+  }, [playSfx, addFloatingText]);
 
     const updateEnemies = useCallback((dt: number) => {
         const p = playerRef.current;
@@ -3175,6 +3223,21 @@ const sendEnemyToOpponent = useCallback((enemyType: string) => {
         
         ctx.save();
         ctx.translate(e.x, e.y);
+
+        // 🔴 ADD THIS - Red glow for opponent enemies
+    if ((e as any).fromOpponent) {
+        ctx.save();
+        ctx.shadowColor = '#ff0000';
+        ctx.shadowBlur = 25;
+        ctx.globalAlpha = 0.6 + Math.sin(stateRef.current.elapsed * 8) * 0.2;
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(0, 0, e.r + 5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
+
         // Explosive Death AOE indicator
         if (e.affix === 'Explosive Death') {
             const radius = 180;
@@ -3624,8 +3687,8 @@ if (duelsMode.current && duelsWs.current && gameStatus === GameStatus.Playing) {
         if (enemyToSpawn) {
           console.log('👹 Spawning enemy from opponent:', enemyToSpawn.type);
           
-          // Spawn the enemy
-          spawnEnemy(enemyToSpawn.type, enemyToSpawn.wave);
+          // Spawn the enemy WITH fromOpponent flag 👇
+      spawnEnemy(enemyToSpawn.type, enemyToSpawn.wave, { fromOpponent: true });
           
           // Reset timer for next spawn
           enemySpawnTimer.current = 0.3; // 0.3 seconds between spawns
@@ -3864,28 +3927,23 @@ if (duelsMode.current && duelsWs.current && gameStatus === GameStatus.Playing) {
   }, [initAudio]);
 
   // 1️⃣ FIRST: Define handleDuelsMessage
-const handleDuelsMessage = useCallback((message: any) => {
-  console.log('📨 Received message:', message.type);
   
+const handleDuelsMessage = useCallback((message: any) => {
   switch (message.type) {
     case 'MATCH_FOUND':
-      console.log('🎯 Match found! Opponent:', message.payload.opponent.name);
-      alert(`Match found! vs ${message.payload.opponent.name}`);
-      break;
-
-    case 'MATCH_COUNTDOWN':
-      console.log('⏱️ Countdown:', message.payload.countdown);
+      console.log('🎯 Match found!', message.payload);
+      alert(`Match found! Opponent: ${message.payload.opponent.name}`);
       break;
 
     case 'MATCH_START':
-      console.log('🎮 Match starting!');
+      console.log('▶️ Match starting!');
       duelsMode.current = true;
-      resetGame();
+      resetGame(); // Start fresh game
       setGameStatus(GameStatus.Playing);
       break;
 
     case 'ENEMY_SPAWN':
-      console.log('👹 Receiving enemies from opponent:', message.payload.enemies);
+      console.log('👹 Received enemies from opponent:', message.payload.enemies);
       message.payload.enemies.forEach((enemy: any) => {
         incomingEnemyQueue.current.push({
           type: enemy.type,
@@ -3897,30 +3955,45 @@ const handleDuelsMessage = useCallback((message: any) => {
 
     case 'OPPONENT_STATS':
       opponentStats.current = {
-        name: message.payload.name || 'Opponent',
-        hp: message.payload.hp,
-        hpMax: message.payload.hpMax,
-        wave: message.payload.wave,
-        kills: message.payload.kills,
-        level: message.payload.level
+        ...opponentStats.current,
+        ...message.payload
       };
       break;
 
     case 'OPPONENT_DISCONNECTED':
-      alert('Opponent disconnected! You win!');
-      setGameStatus(GameStatus.GameOver);
-      duelsMode.current = false;
-      break;
-
+  console.log('🔌 Opponent disconnected');
+  alert(message.payload.message);
+  // Intentional fallthrough
+  // falls through
+      
     case 'MATCH_END':
       console.log('🏁 Match ended!', message.payload);
-      alert(message.payload.won ? 'You won!' : 'You lost!');
-      setGameStatus(GameStatus.GameOver);
       duelsMode.current = false;
+      
+      // Close WebSocket connection
+      if (duelsWs.current) {
+        duelsWs.current.close();
+        duelsWs.current = null;
+      }
+      
+      // Clear incoming enemy queue
+      incomingEnemyQueue.current = [];
+      
+      // Show result message
+      const resultMessage = message.payload.won 
+        ? `🎉 Victory! +${message.payload.ratingChange} ELO` 
+        : `💀 Defeat! ${message.payload.ratingChange} ELO`;
+      
+      alert(resultMessage);
+      
+      // Reset to title screen after a short delay
+      setTimeout(() => {
+        setGameStatus(GameStatus.Title);
+      }, 100);
       break;
 
     default:
-      console.log('Unknown message type:', message.type);
+      console.log('❓ Unknown message type:', message.type);
   }
 }, [resetGame, setGameStatus]);
 
