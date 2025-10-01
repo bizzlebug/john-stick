@@ -3963,34 +3963,43 @@ const handleDuelsMessage = useCallback((message: any) => {
     case 'OPPONENT_DISCONNECTED':
   console.log('🔌 Opponent disconnected');
   alert(message.payload.message);
-  // Intentional fallthrough
-  // falls through
-      
-    case 'MATCH_END':
-      console.log('🏁 Match ended!', message.payload);
-      duelsMode.current = false;
-      
-      // Close WebSocket connection
-      if (duelsWs.current) {
-        duelsWs.current.close();
-        duelsWs.current = null;
-      }
-      
-      // Clear incoming enemy queue
-      incomingEnemyQueue.current = [];
-      
-      // Show result message
-      const resultMessage = message.payload.won 
-        ? `🎉 Victory! +${message.payload.ratingChange} ELO` 
-        : `💀 Defeat! ${message.payload.ratingChange} ELO`;
-      
-      alert(resultMessage);
-      
-      // Reset to title screen after a short delay
-      setTimeout(() => {
-        setGameStatus(GameStatus.Title);
-      }, 100);
-      break;
+  // Handle disconnect by ending the match
+  duelsMode.current = false;
+  
+  if (duelsWs.current) {
+    duelsWs.current.close();
+    duelsWs.current = null;
+  }
+  
+  incomingEnemyQueue.current = [];
+  
+  setTimeout(() => {
+    setGameStatus(GameStatus.Title);
+  }, 100);
+  break;
+
+case 'MATCH_END':
+  console.log('🏁 Match ended!', message.payload);
+  duelsMode.current = false;
+  
+  if (duelsWs.current) {
+    duelsWs.current.close();
+    duelsWs.current = null;
+  }
+  
+  incomingEnemyQueue.current = [];
+  
+  if (message.payload) {
+    const resultMessage = message.payload.won 
+      ? `🎉 Victory! +${message.payload.ratingChange} ELO` 
+      : `💀 Defeat! ${message.payload.ratingChange} ELO`;
+    alert(resultMessage);
+  }
+  
+  setTimeout(() => {
+    setGameStatus(GameStatus.Title);
+  }, 100);
+  break;
 
     default:
       console.log('❓ Unknown message type:', message.type);
