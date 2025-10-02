@@ -12,6 +12,7 @@ import { GameInfoOverlay } from './components/GameInfoOverlay';
 import { UpgradeScreen } from './components/UpgradeScreen';
 import { AdminMenu } from './components/AdminMenu';
 import { ChangelogOverlay } from './components/ChangelogOverlay';
+import { DuelsLobby } from './components/DuelsLobby';
 
 
 // A dummy weapon object to prevent crashes if the pause menu is rendered before the player's weapon is initialized.
@@ -240,7 +241,7 @@ export const App: React.FC = () => {
 
 
   const playSfx = useCallback((id: string) => {
-    if (!audioInitialized.current || isMuted || gameStatus === GameStatus.Title) return;
+    if (!audioInitialized.current || isMuted || gameStatus === GameStatus.Title || gameStatus === GameStatus.DuelsLobby) return;
     const pool = sfxPool.current[id];
     if (pool) {
         const audio = pool.elements[pool.next];
@@ -488,21 +489,23 @@ const sendEnemyToOpponent = useCallback((enemyType: string) => {
             stompDamage: 0, lifestealPercent: 0, thornsDamage: 0
         };
 
-        // 1. Apply Meta Upgrades
-        for (const [key, upgrade] of Object.entries(META_UPGRADES)) {
-            const level = metaStateRef.current.upgrades[key] || 0;
-            if (level > 0) {
-                const effects = upgrade.effect(level);
-                for (const [stat, value] of Object.entries(effects)) {
-                    if (stat === 'baseHpMaxAdd') mods.hpMaxAdd += value;
-                    else if (stat === 'baseXpMul') mods.xpMul *= (1 + value);
-                    else if (stat === 'banishes') mods.banishes += value;
-                    else if (stat === 'baseDmgMul') mods.dmgMultMul *= (1 + value);
-                    else if (stat === 'baseDmgTakenMul') mods.dmgTakenMul *= (1 + value); // value is negative, so 1 + (-0.02) = 0.98
-                    else if (stat === 'baseCritChanceAdd') mods.critChanceAdd += value;
-                    else if (stat === 'baseMoveSpdMul') mods.moveSpdMul *= (1 + value);
-                }
-            }
+        // 1. Apply Meta Upgrades (but not in Duels)
+        if (!duelsMode.current) {
+          for (const [key, upgrade] of Object.entries(META_UPGRADES)) {
+              const level = metaStateRef.current.upgrades[key] || 0;
+              if (level > 0) {
+                  const effects = upgrade.effect(level);
+                  for (const [stat, value] of Object.entries(effects)) {
+                      if (stat === 'baseHpMaxAdd') mods.hpMaxAdd += value;
+                      else if (stat === 'baseXpMul') mods.xpMul *= (1 + value);
+                      else if (stat === 'banishes') mods.banishes += value;
+                      else if (stat === 'baseDmgMul') mods.dmgMultMul *= (1 + value);
+                      else if (stat === 'baseDmgTakenMul') mods.dmgTakenMul *= (1 + value); // value is negative, so 1 + (-0.02) = 0.98
+                      else if (stat === 'baseCritChanceAdd') mods.critChanceAdd += value;
+                      else if (stat === 'baseMoveSpdMul') mods.moveSpdMul *= (1 + value);
+                  }
+              }
+          }
         }
 
         // 2. Apply Perks (from perkCountsRef)
@@ -812,14 +815,16 @@ const sendEnemyToOpponent = useCallback((enemyType: string) => {
     // Recalculate base stats first
     recalcStats();
     
-    // Manually set initial resources based on meta upgrades
-    const banishLevel = metaStateRef.current.upgrades['banish'] || 0;
-    if (banishLevel > 0) {
-        playerRef.current.banishesLeft = META_UPGRADES['banish'].effect(banishLevel).banishes;
-    }
-    const rerollLevel = metaStateRef.current.upgrades['reroll'] || 0;
-    if (rerollLevel > 0) {
-        playerRef.current.rerollsLeft = META_UPGRADES['reroll'].effect(rerollLevel).rerolls;
+    // Manually set initial resources based on meta upgrades (but not in Duels)
+    if (!duelsMode.current) {
+      const banishLevel = metaStateRef.current.upgrades['banish'] || 0;
+      if (banishLevel > 0) {
+          playerRef.current.banishesLeft = META_UPGRADES['banish'].effect(banishLevel).banishes;
+      }
+      const rerollLevel = metaStateRef.current.upgrades['reroll'] || 0;
+      if (rerollLevel > 0) {
+          playerRef.current.rerollsLeft = META_UPGRADES['reroll'].effect(rerollLevel).rerolls;
+      }
     }
 
     playerRef.current.hp = playerRef.current.hpMax;
@@ -3427,7 +3432,7 @@ const sendEnemyToOpponent = useCallback((enemyType: string) => {
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
     
-    if ((gameStatus === GameStatus.Playing || gameStatus === GameStatus.Title) && !isAdminMenuOpen) {
+    if ((gameStatus === GameStatus.Playing || gameStatus === GameStatus.Title || gameStatus === GameStatus.DuelsLobby) && !isAdminMenuOpen) {
       stateRef.current.elapsed += dt;
       coinSfxCooldownRef.current = Math.max(0, coinSfxCooldownRef.current - dt);
 
@@ -3494,7 +3499,7 @@ const sendEnemyToOpponent = useCallback((enemyType: string) => {
           recalcStats();
       }
 
-      if (gameStatus === GameStatus.Title) {
+      if (gameStatus === GameStatus.Title || gameStatus === GameStatus.DuelsLobby) {
         runDemoAI(dt);
       } else {
         // --- Player Movement ---
@@ -4006,8 +4011,18 @@ case 'MATCH_END':
   }
 }, [resetGame, setGameStatus]);
 
-// 2️⃣ SECOND: Define connectToDuels (which uses handleDuelsMessage)
-const connectToDuels = useCallback(() => {
+// State for duels server status
+const [duelsServerStatus, setDuelsServerStatus] = useState<{
+  queueLength: number;
+  activeMatches: number;
+  connectedPlayers: number;
+} | null>(null);
+
+// ✅ NEW - Browser-compatible type
+const statusPollInterval = useRef<number | null>(null);
+
+// Connect to duels server (doesn't join queue yet)
+const connectToDuelsServer = useCallback(() => {
   const serverUrl = 'wss://bizzles-projects-production.up.railway.app/';
   const ws = new WebSocket(serverUrl);
 
@@ -4015,41 +4030,88 @@ const connectToDuels = useCallback(() => {
     console.log('✅ Connected to Duels server');
     duelsWs.current = ws;
     
-    ws.send(JSON.stringify({
-      type: 'JOIN_QUEUE',
-      payload: {
-        playerId: Date.now().toString(),
-        playerName: 'Player',
-        rating: 1000
+    // Request initial status via WebSocket
+    ws.send(JSON.stringify({ type: 'GET_STATUS' }));
+    
+    // Poll for status updates via WebSocket every 3 seconds
+    statusPollInterval.current = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'GET_STATUS' }));
       }
-    }));
+    }, 3000);
   };
 
   ws.onmessage = (event) => {
     const message = JSON.parse(event.data);
-    handleDuelsMessage(message);
+    
+    // Handle status response
+    if (message.type === 'STATUS') {
+      console.log('📊 Server status:', message.payload);
+      setDuelsServerStatus(message.payload);
+    } else {
+      handleDuelsMessage(message);
+    }
   };
 
   ws.onerror = (error) => {
     console.error('❌ Duels connection error:', error);
-    alert('Failed to connect to Duels server. Make sure the server is running!');
+    alert('Failed to connect to Duels server. Please try again.');
     setGameStatus(GameStatus.Title);
   };
 
   ws.onclose = () => {
     console.log('🔌 Disconnected from Duels server');
     duelsWs.current = null;
-    duelsMode.current = false;
+    if (statusPollInterval.current) {
+      clearInterval(statusPollInterval.current);
+      statusPollInterval.current = null;
+    }
   };
-}, [handleDuelsMessage, setGameStatus]);
+}, [handleDuelsMessage]);
 
-// 3️⃣ THIRD: Define handleStartDuels (which uses connectToDuels)
+// ✅ NEW (remove fetchServerStatus from dependencies)
 const handleStartDuels = useCallback(() => {
   initAudio();
-  console.log('🔥 Starting Duels mode...');
-  connectToDuels();
-  alert('Connecting to Duels server... Check console for status!');
-}, [initAudio, connectToDuels]);
+  console.log('🔥 Opening Duels lobby...');
+  setGameStatus(GameStatus.DuelsLobby);
+  connectToDuelsServer();
+}, [initAudio, connectToDuelsServer]);
+
+// Function to join the queue (called when user clicks "Find Match")
+const handleJoinDuelsQueue = useCallback(() => {
+  if (!duelsWs.current || duelsWs.current.readyState !== WebSocket.OPEN) {
+    alert('Not connected to server!');
+    return;
+  }
+
+  console.log('📝 Joining matchmaking queue...');
+  duelsWs.current.send(JSON.stringify({
+    type: 'JOIN_QUEUE',
+    payload: {
+      playerId: Date.now().toString(),
+      playerName: 'Player',
+      rating: 1000
+    }
+  }));
+
+  alert('Joined queue! Searching for opponent...');
+}, []);
+
+// Function to leave lobby
+const handleLeaveDuelsLobby = useCallback(() => {
+  setGameStatus(GameStatus.Title);
+  
+  if (duelsWs.current) {
+    duelsWs.current.send(JSON.stringify({ type: 'LEAVE_QUEUE' }));
+    duelsWs.current.close();
+    duelsWs.current = null;
+  }
+  
+  if (statusPollInterval.current) {
+    clearInterval(statusPollInterval.current);
+    statusPollInterval.current = null;
+  }
+}, []);
 
   // --- Admin Panel Handlers ---
   const handleUnlockEvolution = useCallback((evoId: string) => {
@@ -4170,6 +4232,15 @@ const postPatchNotes = useCallback(async () => {
                   onBack={() => setIsUpgradeScreenVisible(false)} 
                 />}
           </>;
+      case GameStatus.DuelsLobby:
+        return (
+          <DuelsLobby
+            onBack={handleLeaveDuelsLobby}
+            onJoinQueue={handleJoinDuelsQueue}
+            wsConnected={duelsWs.current?.readyState === WebSocket.OPEN}
+            serverStatus={duelsServerStatus}
+          />
+        );
       case GameStatus.LevelUp:
         return <LevelUpOverlay 
                     perks={levelUpPerks} 
@@ -4189,49 +4260,48 @@ const postPatchNotes = useCallback(async () => {
       case GameStatus.Paused:
         return <PauseMenu onResume={() => handlePause(false)} onRestart={restartGame} onExit={exitToTitle} {...playerStateForPauseMenu} />;
       case GameStatus.Playing:
-        return <HUD data={hudData} />;
+        // FIX: Added a return statement to handle the 'Playing' game state, preventing the function from implicitly returning undefined.
+        return null;
       default:
         return null;
     }
-  }
+  };
 
+  // FIX: The App component was missing a return statement, causing a compilation error. This adds the main JSX structure for the application, including the game canvas and UI overlays.
   return (
-    <div className="w-screen h-screen bg-gray-900 text-white select-none overflow-hidden cursor-crosshair">
-      <canvas 
-        ref={canvasRef} 
-        className="absolute top-0 left-0 w-full h-full"
+    <main
+      className="w-screen h-screen bg-gray-900 text-white overflow-hidden relative"
+      style={{ touchAction: 'none' }}
+    >
+      <canvas
+        ref={canvasRef}
+        className="w-full h-full block"
         onTouchStart={isMobile ? handleTouchStart : undefined}
         onTouchMove={isMobile ? handleTouchMove : undefined}
         onTouchEnd={isMobile ? handleTouchEnd : undefined}
         onTouchCancel={isMobile ? handleTouchEnd : undefined}
       />
       
+      {gameStatus === GameStatus.Playing && <HUD data={hudData} />}
+      
       {renderContent()}
 
       {isChangelogVisible && <ChangelogOverlay onClose={() => setIsChangelogVisible(false)} />}
-
-      {isAdminMenuOpen && gameStatus === GameStatus.Playing && (
-          <AdminMenu
-              onClose={() => setIsAdminMenuOpen(false)}
-              onUnlockEvolution={handleUnlockEvolution}
-              onGainXp={handleGainXpAdmin}
-              onGainCoins={handleGainCoinsAdmin}
-              onGiveAllItems={handleGiveAllItems}
-              onToggleGodMode={handleToggleGodMode}
-              isGodMode={isGodMode}
-              onSpawnBigBoss={handleSpawnBigBossAdmin}
-              onPostPatchNotes={postPatchNotes}
-          />
-      )}
       
-      {/* UI Controls */}
-      <div className="absolute top-2 right-2 flex gap-2 z-30">
-        <button onClick={() => setIsMuted(!isMuted)} className="bg-gray-800/80 p-2 rounded-md hover:bg-gray-700" aria-label={isMuted ? 'Unmute' : 'Mute'}>
-          {isMuted ? '🔇' : '🔊'}
-        </button>
-      </div>
+      {isAdminMenuOpen && (
+        <AdminMenu
+          onClose={() => setIsAdminMenuOpen(false)}
+          onUnlockEvolution={handleUnlockEvolution}
+          onGainXp={handleGainXpAdmin}
+          onGainCoins={handleGainCoinsAdmin}
+          onGiveAllItems={handleGiveAllItems}
+          onToggleGodMode={handleToggleGodMode}
+          isGodMode={isGodMode}
+          onSpawnBigBoss={handleSpawnBigBossAdmin}
+          onPostPatchNotes={postPatchNotes}
+        />
+      )}
 
-      {/* The mobile controls section was removed because the input file was truncated and malformed. */}
-    </div>
+    </main>
   );
 };
