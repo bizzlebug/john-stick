@@ -1,7 +1,7 @@
 {
   "name": "john-stick-horde-survivor",
   "private": true,
-  "version": "0.223.2",
+  "version": "0.310.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,6 +17,6 @@
     "@types/react-dom": "^18.2.7",
     "@vitejs/plugin-react": "^4.0.3",
     "typescript": "^5.0.2",
-    "vite": "^7.1.7"
+    "vite": "^7.1.8"
   }
 }

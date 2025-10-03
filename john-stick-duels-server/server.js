@@ -152,51 +152,58 @@ class MatchmakingQueue {
   }
 
   handlePlayerDeath(ws) {
-    const player = this.playerSessions.get(ws);
-    if (!player || !player.matchId) return;
+  const player = this.playerSessions.get(ws);
+  if (!player || !player.matchId) return;
 
-    const match = this.activeMatches.get(player.matchId);
-    if (!match || match.state !== 'playing') return;
+  const match = this.activeMatches.get(player.matchId);
+  if (!match || match.state !== 'playing') return;
 
-    match.state = 'finished';
-    const opponent = match.player1.ws === ws ? match.player2 : match.player1;
-    const winner = opponent;
-    const loser = player;
+  match.state = 'finished';
+  const opponent = match.player1.ws === ws ? match.player2 : match.player1;
+  const winner = opponent;
+  const loser = player;
 
-    const ratingChange = this.calculateRatingChange(winner, loser);
+  const ratingChange = this.calculateRatingChange(winner, loser);
 
-    this.sendToPlayer(winner.ws, {
-      type: 'MATCH_END',
-      payload: {
-        won: true,
-        ratingChange: ratingChange,
-        finalStats: winner.stats || {},
-        rewards: {
-          coins: 100,
-          ratingChange: ratingChange
-        }
+  this.sendToPlayer(winner.ws, {
+    type: 'MATCH_END',
+    payload: {
+      won: true,
+      ratingChange: ratingChange,
+      finalStats: winner.stats || {},
+      rewards: {
+        coins: 100,
+        ratingChange: ratingChange
       }
-    });
+    }
+  });
 
-    this.sendToPlayer(loser.ws, {
-      type: 'MATCH_END',
-      payload: {
-        won: false,
-        ratingChange: -Math.floor(ratingChange / 2),
-        finalStats: loser.stats || {},
-        rewards: {
-          coins: 25,
-          ratingChange: -Math.floor(ratingChange / 2)
-        }
+  this.sendToPlayer(loser.ws, {
+    type: 'MATCH_END',
+    payload: {
+      won: false,
+      ratingChange: -Math.floor(ratingChange / 2),
+      finalStats: loser.stats || {},
+      rewards: {
+        coins: 25,
+        ratingChange: -Math.floor(ratingChange / 2)
       }
-    });
+    }
+  });
 
-    console.log(`🏁 Match ${match.id} ended. Winner: ${winner.name}`);
+  console.log(`🏁 Match ${match.id} ended. Winner: ${winner.name}`);
 
-    setTimeout(() => {
-      this.activeMatches.delete(match.id);
-    }, 60000);
+  // 🔴 FIX: Delete match immediately, not after 60 seconds
+  this.activeMatches.delete(match.id);
+  
+  // Clear match IDs from both players
+  if (this.playerSessions.get(winner.ws)) {
+    this.playerSessions.get(winner.ws).matchId = null;
   }
+  if (this.playerSessions.get(loser.ws)) {
+    this.playerSessions.get(loser.ws).matchId = null;
+  }
+}
 
   calculateRatingChange(winner, loser) {
     const K = 32;
@@ -219,32 +226,36 @@ class MatchmakingQueue {
   }
 
   handleDisconnect(ws) {
-    const player = this.playerSessions.get(ws);
-    if (!player) return;
+  const player = this.playerSessions.get(ws);
+  if (!player) return;
 
-    if (!player.matchId) {
-      this.removePlayer(ws);
-      return;
+  if (!player.matchId) {
+    this.removePlayer(ws);
+    return;
+  }
+
+  const match = this.activeMatches.get(player.matchId);
+  if (match && match.state === 'playing') {
+    const opponent = match.player1.ws === ws ? match.player2 : match.player1;
+    
+    this.sendToPlayer(opponent.ws, {
+      type: 'OPPONENT_DISCONNECTED',
+      payload: {
+        message: 'Opponent disconnected. You win!'
+      }
+    });
+
+    // 🔴 FIX: Delete match immediately on disconnect
+    this.activeMatches.delete(player.matchId);
+    
+    // Clear opponent's match ID
+    if (this.playerSessions.get(opponent.ws)) {
+      this.playerSessions.get(opponent.ws).matchId = null;
     }
+  }
 
-    const match = this.activeMatches.get(player.matchId);
-    if (match && match.state === 'playing') {
-      const opponent = match.player1.ws === ws ? match.player2 : match.player1;
-      
-      this.sendToPlayer(opponent.ws, {
-        type: 'OPPONENT_DISCONNECTED',
-        payload: {
-          message: 'Opponent disconnected. You win!'
-        }
-      });
-
-      setTimeout(() => {
-        this.handlePlayerDeath(opponent.ws);
-      }, 1000);
-    }
-
-    this.playerSessions.delete(ws);
-    console.log(`🔌 Player ${player.name} disconnected`);
+  this.playerSessions.delete(ws);
+  console.log(`🔌 Player ${player.name} disconnected`);
   }
 }
 
@@ -282,6 +293,17 @@ wss.on('connection', (ws) => {
           ws.send(JSON.stringify({ type: 'PONG' }));
           break;
 
+        case 'GET_STATUS':
+          ws.send(JSON.stringify({
+            type: 'STATUS',
+            payload: {
+              queueLength: matchmaking.queue.length,
+              activeMatches: matchmaking.activeMatches.size,
+              connectedPlayers: matchmaking.playerSessions.size
+            }
+          }));
+          break;
+
         default:
           console.log('❓ Unknown message type:', data.type);
       }
@@ -300,6 +322,17 @@ wss.on('connection', (ws) => {
 });
 
 server.on('request', (req, res) => {
+  // Add CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
   if (req.url === '/status') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({

@@ -95,6 +95,24 @@ export const META_UPGRADES: Record<string, {
 
 export const CHANGELOG_VERSIONS = [
   {
+    version: 'Alpha 0.310',
+    notes: [
+      "NEW GAME MODE: DUELS! A new competitive 1v1 multiplayer mode has been added. Challenge other players to see who is the ultimate survivor!",
+      "Duels Gameplay: Kill enemies on your screen to send a swarm of them to your opponent's screen. The stronger the enemy you defeat, the more you'll send over.",
+      "Last Stick Standing: The goal is simple: survive longer than your opponent. The first player to be defeated loses the duel.",
+      "Fair and Balanced: To ensure a level playing field, all permanent meta-upgrades are disabled in Duels mode. It's all about skill and your choices during the match!",
+      "Accessing Duels: You can enter the Duels Lobby directly from the title screen to find a match.",
+      "Bug Fix (Duels): Fixed an issue where wave progression would halt if enemies sent by the opponent were still on screen. Waves will now correctly advance once all native enemies for that wave are defeated."
+    ],
+  },
+  {
+    version: 'Alpha 0.300',
+    notes: [
+      "Duels Balance: Permanent meta upgrades (e.g., bonus HP, damage, rerolls) are now completely ignored in Duels mode to ensure fair and competitive matches.",
+      "Duels Lobby QoL: The background demo game is now correctly muted while the Duels Lobby is open, creating a more focused pre-match experience.",
+    ],
+  },
+  {
     version: 'Alpha 0.225',
     notes: [
       "Security Fix: The Discord webhook for posting patch notes is now handled by a secure backend service, resolving a client-side vulnerability where the webhook URL was exposed.",

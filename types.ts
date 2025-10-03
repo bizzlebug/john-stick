@@ -10,6 +10,7 @@ export enum GameStatus {
   GameOver,
   Upgrades,
   Duels,
+  DuelsLobby,
 }
 
 export interface Weapon {

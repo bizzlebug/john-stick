@@ -6,7 +6,7 @@ interface TitleScreenProps {
   onShowInfo: () => void;
   onShowUpgrades: () => void;
   onShowChangelog: () => void;
-  onStartDuels: () => void;  // ✅ Add this line
+  onStartDuels: () => void;
   scores: Score[];
   loading: boolean;
   online: boolean;
@@ -20,6 +20,33 @@ const fmtTime = (secs: number) => {
 
 export const TitleScreen: React.FC<TitleScreenProps> = ({ onStart, onShowInfo, onShowUpgrades, onShowChangelog, onStartDuels, scores, loading, online }) => {
   const [showDuelsToast, setShowDuelsToast] = useState(false);
+  
+  // 👇 NEW: Online player count state
+  const [onlineCount, setOnlineCount] = useState<number>(0);
+  const [isLoadingCount, setIsLoadingCount] = useState(true);
+
+  // 👇 NEW: Fetch online player count
+  useEffect(() => {
+    const fetchOnlineCount = async () => {
+      try {
+        const response = await fetch('https://bizzles-projects-production.up.railway.app/status');
+        const data = await response.json();
+        setOnlineCount(data.connectedPlayers || 0);
+        setIsLoadingCount(false);
+      } catch (error) {
+        console.error('Failed to fetch online count:', error);
+        setIsLoadingCount(false);
+      }
+    };
+
+    // Fetch immediately
+    fetchOnlineCount();
+
+    // Then fetch every 10 seconds
+    const interval = setInterval(fetchOnlineCount, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     let timer: number;
@@ -30,10 +57,6 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStart, onShowInfo, o
     }
     return () => clearTimeout(timer);
   }, [showDuelsToast]);
-
- // const handleDuelsClick = () => {
- //   setShowDuelsToast(true);
- // };
   
   const rainDrops = React.useMemo(() => {
     return Array.from({ length: 150 }).map((_, i) => {
@@ -61,6 +84,17 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStart, onShowInfo, o
         {rainDrops}
       </div>
       
+      {/* 👇 NEW: Online Player Count Badge */}
+      <div className="absolute top-4 right-4 flex items-center gap-2 bg-black/70 backdrop-blur-sm px-4 py-2 rounded-lg border border-green-500/50 shadow-lg z-30">
+        <div className="relative">
+          <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+          <div className="absolute inset-0 w-3 h-3 bg-green-500 rounded-full animate-ping opacity-75"></div>
+        </div>
+        <span className="text-green-400 font-semibold text-sm">
+          {isLoadingCount ? '...' : onlineCount} {onlineCount === 1 ? 'Player' : 'Players'} Online
+        </span>
+      </div>
+      
       <div className="bg-indigo-950 border border-fuchsia-800 rounded-2xl p-8 text-center shadow-2xl shadow-fuchsia-500/20 text-white w-full max-w-4xl relative">
         
         <h1 className="pixel-title my-8">
@@ -73,23 +107,22 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStart, onShowInfo, o
         <div className="w-full h-1 border-t-4 border-b-2 border-black/30 my-8"></div>
 
         <div className="flex justify-center gap-4">
-  <button onClick={onStart} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-8 rounded-lg text-xl transition-transform transform hover:scale-105">
-    Start Game
-  </button>
-  
-  {/* 👇 ADD THIS DUELS BUTTON */}
-  <button onClick={onStartDuels} className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-lg text-xl transition-transform transform hover:scale-105">
-    🔥 Duels
-  </button>
-  {/* 👆 END OF DUELS BUTTON */}
-  
-  <button onClick={onShowUpgrades} className="bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold py-3 px-8 rounded-lg text-xl transition-transform transform hover:scale-105">
-    Upgrades
-  </button>
-  <button onClick={onShowInfo} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-lg text-xl transition-transform transform hover:scale-105">
-    Game Info
-  </button>
-</div>
+          <button onClick={onStart} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-8 rounded-lg text-xl transition-transform transform hover:scale-105">
+            Start Game
+          </button>
+          
+          <button onClick={onStartDuels} className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-8 rounded-lg text-xl transition-transform transform hover:scale-105">
+            🔥 Duels
+          </button>
+          
+          <button onClick={onShowUpgrades} className="bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold py-3 px-8 rounded-lg text-xl transition-transform transform hover:scale-105">
+            Upgrades
+          </button>
+          <button onClick={onShowInfo} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded-lg text-xl transition-transform transform hover:scale-105">
+            Game Info
+          </button>
+        </div>
+        
         <h2 className="text-2xl font-semibold mt-8 mb-4">
             {online ? 'Online Leaderboard' : 'High Scores'}
             {!online && !loading && <span className="text-sm text-gray-500 ml-2">(Offline)</span>}
@@ -126,7 +159,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ onStart, onShowInfo, o
         <p className="text-gray-300 mt-2 text-xs">
           Tip: Duels mode coming soon, get ready for some PvP action!
           <button onClick={onShowChangelog} className="ml-4 underline hover:text-white focus:outline-none focus:text-white">
-            Alpha 0.225
+            Alpha 0.310
           </button>
         </p>
       </div>
