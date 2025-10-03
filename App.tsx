@@ -1441,22 +1441,22 @@ const sendEnemyToOpponent = useCallback((enemyType: string) => {
     }
     const dash = 250;
     
-    // Add afterimage trail
-    const NUM_GHOSTS = 4;
-    const GHOST_LIFETIME = 0.25;
-    for (let i = 1; i <= NUM_GHOSTS; i++) {
-        const progress = i / (NUM_GHOSTS + 1);
-        afterimagesRef.current.push({
-            x: oldX + Math.cos(p.facing) * dash * progress,
-            y: oldY + Math.sin(p.facing) * dash * progress,
-            facingDirection: p.facingDirection,
-            aimAngle: p.aimAngle,
-            runT: p.runT,
-            t: GHOST_LIFETIME,
-            maxT: GHOST_LIFETIME,
-            trailPosition: progress,
-        });
-    }
+// In tryJump function
+const NUM_GHOSTS = 8;
+const GHOST_LIFETIME = 0.25;
+for (let i = 1; i <= NUM_GHOSTS; i++) {
+    const progress = i / (NUM_GHOSTS + 1);
+    afterimagesRef.current.push({
+        x: oldX + Math.cos(p.facing) * dash * progress,
+        y: oldY + Math.sin(p.facing) * dash * progress,
+        facingDirection: p.facingDirection,
+        aimAngle: p.aimAngle,
+        runT: p.runT,
+        t: GHOST_LIFETIME,
+        maxT: GHOST_LIFETIME,
+        trailPosition: progress,
+    });
+}
 
     p.x = clamp(p.x + Math.cos(p.facing) * dash, 16, virtualWidthRef.current - 16);
     p.y = clamp(p.y + Math.sin(p.facing) * dash, 16, virtualHeightRef.current - 16);
@@ -3030,25 +3030,31 @@ const sendEnemyToOpponent = useCallback((enemyType: string) => {
     });
 
     afterimagesRef.current.forEach(a => {
-        const ghost = {
-            ...playerRef.current,
-            x: a.x,
-            y: a.y,
-            facingDirection: a.facingDirection,
-            runT: a.runT,
-            bob: 0,
-            invuln: 0,
-        };
-        ctx.save();
-        const timeProgress = a.t / a.maxT;
-        // The trailPosition property (from 0 to 1) determines the opacity along the trail,
-        // creating a gradient effect where afterimages closer to the player's destination are more opaque.
-        const positionFactor = a.trailPosition;
-        const maxOpacity = 0.7;
-        ctx.globalAlpha = maxOpacity * positionFactor * (timeProgress * timeProgress);
-        drawDetailedCharacter(ctx, ghost, true, a.aimAngle, true, '#00f2ff');
-        ctx.restore();
-    });
+    const ghost = {
+        ...playerRef.current,
+        x: a.x,
+        y: a.y,
+        facingDirection: a.facingDirection,
+        runT: a.runT,
+        bob: 0,
+        invuln: 0,
+    };
+    
+    // Calculate opacity based on position
+    const minOpacity = 0.15;
+    const maxOpacity = 0.85;
+    const opacity = minOpacity + (maxOpacity - minOpacity) * a.trailPosition;
+    
+    ctx.save();
+    ctx.globalAlpha = opacity;
+    
+    // Draw with a glow effect instead of outline to preserve alpha
+    ctx.shadowColor = '#00f2ff';
+    ctx.shadowBlur = 15;
+    drawDetailedCharacter(ctx, ghost, true, a.aimAngle, false, ''); // Changed isOutline to false
+    
+    ctx.restore();
+});
 
     effectsRef.current.forEach(effect => {
         const progress = 1 - (effect.t / effect.maxT);
@@ -3473,7 +3479,12 @@ const sendEnemyToOpponent = useCallback((enemyType: string) => {
           stateRef.current.spawnQueue -= batch;
           stateRef.current.spawnTimer = Math.max(0.2, 1.1 - w * 0.06);
         }
-        if (stateRef.current.spawnQueue <= 0 && enemiesRef.current.length === 0 && !playerRef.current.isDemo) {
+        
+        const allNativeEnemiesDefeated = duelsMode.current
+          ? enemiesRef.current.every(e => e.fromOpponent)
+          : enemiesRef.current.length === 0;
+          
+        if (stateRef.current.spawnQueue <= 0 && allNativeEnemiesDefeated && !playerRef.current.isDemo) {
           stateRef.current.waveInProgress = false;
           stateRef.current.wave += 1;
           stateRef.current.waveBreak = 3.5;
@@ -4282,6 +4293,25 @@ const postPatchNotes = useCallback(async () => {
         onTouchCancel={isMobile ? handleTouchEnd : undefined}
       />
       
+      {(gameStatus !== GameStatus.Title && gameStatus !== GameStatus.DuelsLobby) && (
+        <button
+          onClick={() => setIsMuted(!isMuted)}
+          className="absolute top-4 right-4 z-50 w-12 h-12 bg-black bg-opacity-40 rounded-full flex items-center justify-center border-2 border-white/20 hover:bg-opacity-60 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-400"
+          aria-label={isMuted ? 'Unmute' : 'Mute'}
+        >
+          {isMuted ? (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clipRule="evenodd" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 14l-2-2m0 0l-2-2m2 2l2-2m-2 2l-2 2" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+            </svg>
+          )}
+        </button>
+      )}
+
       {gameStatus === GameStatus.Playing && <HUD data={hudData} />}
       
       {renderContent()}
