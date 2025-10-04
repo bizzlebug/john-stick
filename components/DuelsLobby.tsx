@@ -1,5 +1,90 @@
 import React, { useState, useEffect } from 'react';
 
+// Custom Popup Component
+interface CustomPopupProps {
+  title: string;
+  message: string;
+  type?: 'info' | 'success' | 'error' | 'warning';
+  onClose: () => void;
+  buttons?: {
+    text: string;
+    onClick: () => void;
+    variant?: 'primary' | 'secondary' | 'danger';
+  }[];
+}
+
+const CustomPopup: React.FC<CustomPopupProps> = ({ 
+  title, 
+  message, 
+  type = 'info',
+  onClose, 
+  buttons = [{ text: 'OK', onClick: onClose, variant: 'primary' }]
+}) => {
+  const typeStyles = {
+    info: 'border-cyan-500 bg-cyan-950',
+    success: 'border-green-500 bg-green-950',
+    error: 'border-red-500 bg-red-950',
+    warning: 'border-yellow-500 bg-yellow-950'
+  };
+
+  const typeIcons = {
+    info: 'ℹ️',
+    success: '✅',
+    error: '❌',
+    warning: '⚠️'
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+      <div className={`relative w-full max-w-md mx-4 ${typeStyles[type]} border-4 rounded-xl shadow-2xl p-6`}
+           style={{ animation: 'scaleIn 0.2s ease-out' }}>
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-4 pb-4 border-b-2 border-white/20">
+          <span className="text-3xl">{typeIcons[type]}</span>
+          <h2 className="text-2xl font-bold text-white">{title}</h2>
+        </div>
+
+        {/* Message */}
+        <p className="text-white text-lg mb-6 leading-relaxed">{message}</p>
+
+        {/* Buttons */}
+        <div className="flex gap-3 justify-end">
+          {buttons.map((btn, idx) => {
+            const variantStyles = {
+              primary: 'bg-cyan-600 hover:bg-cyan-500 border-cyan-400',
+              secondary: 'bg-gray-600 hover:bg-gray-500 border-gray-400',
+              danger: 'bg-red-600 hover:bg-red-500 border-red-400'
+            };
+            
+            return (
+              <button
+                key={idx}
+                onClick={btn.onClick}
+                className={`${variantStyles[btn.variant || 'primary']} text-white font-bold py-2 px-6 rounded-lg border-2 transition-all transform hover:scale-105 active:scale-95`}
+              >
+                {btn.text}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <style>{`
+        @keyframes scaleIn {
+          from {
+            opacity: 0;
+            transform: scale(0.8);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+// Main DuelsLobby Component
 interface DuelsLobbyProps {
   onBack: () => void;
   onJoinQueue: () => void;
@@ -18,6 +103,13 @@ export const DuelsLobby: React.FC<DuelsLobbyProps> = ({
   serverStatus
 }) => {
   const [dots, setDots] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [popup, setPopup] = useState<{
+    title: string;
+    message: string;
+    type: 'info' | 'success' | 'error' | 'warning';
+    buttons?: any[];
+  } | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -25,6 +117,25 @@ export const DuelsLobby: React.FC<DuelsLobbyProps> = ({
     }, 500);
     return () => clearInterval(interval);
   }, []);
+
+  const handleJoinQueue = () => {
+    if (!wsConnected) {
+      setPopup({
+        title: 'Connection Error',
+        message: 'Not connected to server! Please try again.',
+        type: 'error'
+      });
+      return;
+    }
+
+    setIsSearching(true);
+    onJoinQueue();
+  };
+
+  const handleCancelSearch = () => {
+    setIsSearching(false);
+    // Note: You'll need to add LEAVE_QUEUE logic in your App.tsx
+  };
 
   return (
     <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center backdrop-blur-md z-50">
@@ -116,27 +227,82 @@ export const DuelsLobby: React.FC<DuelsLobbyProps> = ({
           </button>
           
           <button
-            onClick={onJoinQueue}
-            disabled={!wsConnected}
-            className={`flex-1 font-bold py-4 px-6 rounded-lg text-xl transition-all transform hover:scale-105 ${
-              wsConnected
-                ? 'bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 text-white shadow-lg shadow-red-500/50'
-                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-            }`}
+            onClick={handleJoinQueue}
+            disabled={!wsConnected || isSearching}
+            className={`flex-1 font-bold py-4 px-6 rounded-lg text-xl transition-all transform ${
+              !isSearching ? 'hover:scale-105' : ''
+            } ${
+              isSearching
+                ? 'bg-orange-600 border-4 border-orange-400 cursor-wait'
+                : wsConnected
+                ? 'bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 shadow-lg shadow-red-500/50'
+                : 'bg-gray-600 cursor-not-allowed'
+            } text-white relative overflow-hidden`}
           >
-            {wsConnected ? '🎮 Find Match' : 'Connecting...'}
+            {isSearching ? (
+              <span className="flex items-center justify-center gap-3">
+                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                  <circle 
+                    className="opacity-25" 
+                    cx="12" 
+                    cy="12" 
+                    r="10" 
+                    stroke="currentColor" 
+                    strokeWidth="4"
+                    fill="none"
+                  />
+                  <path 
+                    className="opacity-75" 
+                    fill="currentColor" 
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                Searching...
+              </span>
+            ) : (
+              '🎮 Find Match'
+            )}
+            
+            {/* Animated shimmer when searching */}
+            {isSearching && (
+              <div 
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                style={{ animation: 'shimmer 2s infinite' }}
+              />
+            )}
           </button>
         </div>
 
         {/* Footer */}
         <div className="text-center mt-6 text-gray-500 text-sm">
-          {wsConnected ? (
+          {isSearching ? (
+            <p>Searching for an opponent{dots}</p>
+          ) : wsConnected ? (
             <p>Click "Find Match" to enter the matchmaking queue</p>
           ) : (
             <p>Establishing connection to duels server{dots}</p>
           )}
         </div>
       </div>
+
+      {/* Custom Popup */}
+      {popup && (
+        <CustomPopup
+          title={popup.title}
+          message={popup.message}
+          type={popup.type}
+          onClose={() => setPopup(null)}
+          buttons={popup.buttons}
+        />
+      )}
+
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+      `}</style>
     </div>
   );
 };
