@@ -93,6 +93,78 @@ const checkCapsuleCapsuleCollision = (c1: Capsule, c2: Capsule): {
     return { collided: false };
 };
 
+// Custom Popup Component for Duels
+interface CustomPopupProps {
+  title: string;
+  message: string;
+  type?: 'info' | 'success' | 'error' | 'warning';
+  onClose: () => void;
+  buttons?: {
+    text: string;
+    onClick: () => void;
+    variant?: 'primary' | 'secondary' | 'danger';
+  }[];
+}
+
+const CustomPopup: React.FC<CustomPopupProps> = ({ 
+  title, 
+  message, 
+  type = 'info',
+  onClose, 
+  buttons = [{ text: 'OK', onClick: onClose, variant: 'primary' }]
+}) => {
+  const typeStyles = {
+    info: 'border-cyan-500 bg-cyan-950',
+    success: 'border-green-500 bg-green-950',
+    error: 'border-red-500 bg-red-950',
+    warning: 'border-yellow-500 bg-yellow-950'
+  };
+
+  const typeIcons = {
+    info: 'ℹ️',
+    success: '✅',
+    error: '❌',
+    warning: '⚠️'
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+      <div className={`relative w-full max-w-md mx-4 ${typeStyles[type]} border-4 rounded-xl shadow-2xl p-6`}
+           style={{ animation: 'scaleIn 0.2s ease-out' }}>
+        <div className="flex items-center gap-3 mb-4 pb-4 border-b-2 border-white/20">
+          <span className="text-3xl">{typeIcons[type]}</span>
+          <h2 className="text-2xl font-bold text-white">{title}</h2>
+        </div>
+        <p className="text-white text-lg mb-6 leading-relaxed">{message}</p>
+        <div className="flex gap-3 justify-end">
+          {buttons.map((btn, idx) => {
+            const variantStyles = {
+              primary: 'bg-cyan-600 hover:bg-cyan-500 border-cyan-400',
+              secondary: 'bg-gray-600 hover:bg-gray-500 border-gray-400',
+              danger: 'bg-red-600 hover:bg-red-500 border-red-400'
+            };
+            
+            return (
+              <button
+                key={idx}
+                onClick={btn.onClick}
+                className={`${variantStyles[btn.variant || 'primary']} text-white font-bold py-2 px-6 rounded-lg border-2 transition-all transform hover:scale-105 active:scale-95`}
+              >
+                {btn.text}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <style>{`
+        @keyframes scaleIn {
+          from { opacity: 0; transform: scale(0.8); }
+          to { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
+    </div>
+  );
+};
 
 // FIX: Added 'export' to the component declaration to make it available for import in other modules.
 export const App: React.FC = () => {
@@ -128,6 +200,16 @@ export const App: React.FC = () => {
   const onlineLeaderboardActiveRef = useRef(onlineLeaderboardActive);
   onlineLeaderboardActiveRef.current = onlineLeaderboardActive;
 
+  // Add this interface at the top of your useState section
+interface DuelsPopup {
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'error' | 'warning';
+  buttons?: any[];
+}
+
+// Add these state variables
+const [duelsPopup, setDuelsPopup] = useState<DuelsPopup | null>(null);
 
   // Game State Refs
   const playerRef = useRef<Player>({} as Player);
@@ -3948,13 +4030,23 @@ const handleDuelsMessage = useCallback((message: any) => {
   switch (message.type) {
     case 'MATCH_FOUND':
       console.log('🎯 Match found!', message.payload);
-      alert(`Match found! Opponent: ${message.payload.opponent.name}`);
+      setDuelsPopup({
+        title: 'Match Found!',
+        message: `Opponent: ${message.payload.opponent.name}`,
+        type: 'success',
+        buttons: [{
+          text: 'Ready!',
+          onClick: () => setDuelsPopup(null),
+          variant: 'primary'
+        }]
+      });
       break;
 
     case 'MATCH_START':
       console.log('▶️ Match starting!');
+      setDuelsPopup(null);
       duelsMode.current = true;
-      resetGame(); // Start fresh game
+      resetGame();
       setGameStatus(GameStatus.Playing);
       break;
 
@@ -3977,45 +4069,61 @@ const handleDuelsMessage = useCallback((message: any) => {
       break;
 
     case 'OPPONENT_DISCONNECTED':
-  console.log('🔌 Opponent disconnected');
-  alert(message.payload.message);
-  // Handle disconnect by ending the match
-  duelsMode.current = false;
-  
-  if (duelsWs.current) {
-    duelsWs.current.close();
-    duelsWs.current = null;
-  }
-  
-  incomingEnemyQueue.current = [];
-  
-  setTimeout(() => {
-    setGameStatus(GameStatus.Title);
-  }, 100);
-  break;
+      console.log('🔌 Opponent disconnected');
+      duelsMode.current = false;
+      
+      if (duelsWs.current) {
+        duelsWs.current.close();
+        duelsWs.current = null;
+      }
+      
+      incomingEnemyQueue.current = [];
+      
+      setDuelsPopup({
+        title: 'Opponent Left',
+        message: message.payload.message,
+        type: 'warning',
+        buttons: [{
+          text: 'OK',
+          onClick: () => {
+            setDuelsPopup(null);
+            setGameStatus(GameStatus.Title);
+          },
+          variant: 'primary'
+        }]
+      });
+      break;
 
-case 'MATCH_END':
-  console.log('🏁 Match ended!', message.payload);
-  duelsMode.current = false;
-  
-  if (duelsWs.current) {
-    duelsWs.current.close();
-    duelsWs.current = null;
-  }
-  
-  incomingEnemyQueue.current = [];
-  
-  if (message.payload) {
-    const resultMessage = message.payload.won 
-      ? `🎉 Victory! +${message.payload.ratingChange} ELO` 
-      : `💀 Defeat! ${message.payload.ratingChange} ELO`;
-    alert(resultMessage);
-  }
-  
-  setTimeout(() => {
-    setGameStatus(GameStatus.Title);
-  }, 100);
-  break;
+    case 'MATCH_END':
+      console.log('🏁 Match ended!', message.payload);
+      duelsMode.current = false;
+      
+      if (duelsWs.current) {
+        duelsWs.current.close();
+        duelsWs.current = null;
+      }
+      
+      incomingEnemyQueue.current = [];
+      
+      if (message.payload) {
+        const won = message.payload.won;
+        const ratingChange = message.payload.ratingChange;
+        
+        setDuelsPopup({
+          title: won ? '🎉 Victory!' : '💀 Defeat',
+          message: `${won ? '+' : ''}${ratingChange} ELO`,
+          type: won ? 'success' : 'error',
+          buttons: [{
+            text: 'Continue',
+            onClick: () => {
+              setDuelsPopup(null);
+              setGameStatus(GameStatus.Title);
+            },
+            variant: 'primary'
+          }]
+        });
+      }
+      break;
 
     default:
       console.log('❓ Unknown message type:', message.type);
@@ -4065,10 +4173,21 @@ const connectToDuelsServer = useCallback(() => {
   };
 
   ws.onerror = (error) => {
-    console.error('❌ Duels connection error:', error);
-    alert('Failed to connect to Duels server. Please try again.');
-    setGameStatus(GameStatus.Title);
-  };
+  console.error('❌ Duels connection error:', error);
+  setDuelsPopup({
+    title: 'Connection Failed',
+    message: 'Failed to connect to Duels server. Please try again.',
+    type: 'error',
+    buttons: [{
+      text: 'OK',
+      onClick: () => {
+        setDuelsPopup(null);
+        setGameStatus(GameStatus.Title);
+      },
+      variant: 'primary'
+    }]
+  });
+};
 
   ws.onclose = () => {
     console.log('🔌 Disconnected from Duels server');
@@ -4091,11 +4210,21 @@ const handleStartDuels = useCallback(() => {
 // Function to join the queue (called when user clicks "Find Match")
 const handleJoinDuelsQueue = useCallback(() => {
   if (!duelsWs.current || duelsWs.current.readyState !== WebSocket.OPEN) {
-    alert('Not connected to server!');
+    setDuelsPopup({
+      title: 'Connection Error',
+      message: 'Not connected to server! Please try again.',
+      type: 'error',
+      buttons: [{
+        text: 'OK',
+        onClick: () => setDuelsPopup(null),
+        variant: 'primary'
+      }]
+    });
     return;
   }
 
   console.log('📝 Joining matchmaking queue...');
+  
   duelsWs.current.send(JSON.stringify({
     type: 'JOIN_QUEUE',
     payload: {
@@ -4104,8 +4233,6 @@ const handleJoinDuelsQueue = useCallback(() => {
       rating: 1000
     }
   }));
-
-  alert('Joined queue! Searching for opponent...');
 }, []);
 
 // Function to leave lobby
@@ -4333,5 +4460,16 @@ const postPatchNotes = useCallback(async () => {
       )}
 
     </main>
+
+      {/* Duels Custom Popups */}
+      {duelsPopup && (
+        <CustomPopup
+          title={duelsPopup.title}
+          message={duelsPopup.message}
+          type={duelsPopup.type}
+          onClose={() => setDuelsPopup(null)}
+          buttons={duelsPopup.buttons}
+        />
+      )}
   );
 };
