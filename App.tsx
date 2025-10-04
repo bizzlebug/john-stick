@@ -4042,6 +4042,10 @@ const handleDuelsMessage = useCallback((message: any) => {
       });
       break;
 
+      case 'MATCH_COUNTDOWN':
+  console.log(`⏰ Match starting in ${message.payload.countdown}...`);
+  break;
+
     case 'MATCH_START':
       console.log('▶️ Match starting!');
       setDuelsPopup(null);
@@ -4094,8 +4098,12 @@ const handleDuelsMessage = useCallback((message: any) => {
       });
       break;
 
+// REPLACE your entire MATCH_END case with this:
+
     case 'MATCH_END':
       console.log('🏁 Match ended!', message.payload);
+      
+      // Clean up duels mode FIRST
       duelsMode.current = false;
       
       if (duelsWs.current) {
@@ -4105,23 +4113,26 @@ const handleDuelsMessage = useCallback((message: any) => {
       
       incomingEnemyQueue.current = [];
       
+      // Go to Title screen IMMEDIATELY to prevent GameOver screen
+      setGameStatus(GameStatus.Title);
+      
+      // THEN show the popup after a small delay
       if (message.payload) {
         const won = message.payload.won;
         const ratingChange = message.payload.ratingChange;
         
-        setDuelsPopup({
-          title: won ? '🎉 Victory!' : '💀 Defeat',
-          message: `${won ? '+' : ''}${ratingChange} ELO`,
-          type: won ? 'success' : 'error',
-          buttons: [{
-            text: 'Continue',
-            onClick: () => {
-              setDuelsPopup(null);
-              setGameStatus(GameStatus.Title);
-            },
-            variant: 'primary'
-          }]
-        });
+        setTimeout(() => {
+          setDuelsPopup({
+            title: won ? '🎉 Victory!' : '💀 Defeat',
+            message: `${won ? '+' : ''}${ratingChange} ELO`,
+            type: won ? 'success' : 'error',
+            buttons: [{
+              text: 'Continue',
+              onClick: () => setDuelsPopup(null),
+              variant: 'primary'
+            }]
+          });
+        }, 100);
       }
       break;
 
