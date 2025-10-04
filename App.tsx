@@ -4459,8 +4459,6 @@ const postPatchNotes = useCallback(async () => {
         />
       )}
 
-    </main>
-
       {/* Duels Custom Popups */}
       {duelsPopup && (
         <CustomPopup
@@ -4471,5 +4469,7 @@ const postPatchNotes = useCallback(async () => {
           buttons={duelsPopup.buttons}
         />
       )}
+
+    </main>
   );
 };

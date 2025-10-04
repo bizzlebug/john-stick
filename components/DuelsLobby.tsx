@@ -132,11 +132,6 @@ export const DuelsLobby: React.FC<DuelsLobbyProps> = ({
     onJoinQueue();
   };
 
-  const handleCancelSearch = () => {
-    setIsSearching(false);
-    // Note: You'll need to add LEAVE_QUEUE logic in your App.tsx
-  };
-
   return (
     <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center backdrop-blur-md z-50">
       <div className="bg-indigo-950 border border-red-500 rounded-2xl p-8 max-w-2xl w-full shadow-2xl shadow-red-500/20">
